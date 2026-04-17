@@ -115,7 +115,7 @@ local DefaultConfig = {
         StealSpeed = {X = 0.02, Y = 0.18}, 
         Settings = {X = 0.834375, Y = 0.43590998043052839}, 
         InvisPanel = {X = 0.8578125, Y = 0.17260276361454258}, 
-        AutoSteal = {X = 0.06, Y = 0.35}, 
+        AutoSteal = {X = 0.02, Y = 0.35}, 
         MobileControls = {X = 0.9, Y = 0.4},
         MobileBtn_TP = {X = 0.5, Y = 0.4},
         MobileBtn_CL = {X = 0.5, Y = 0.4},
@@ -4414,6 +4414,8 @@ local function CreateSectionHeader(text)
     return row
 end
 
+CreateRow("Auto TP on Script Load")
+CreateToggleSwitch(sList:FindFirstChildOfClass("Frame"), Config.TpSettings.TpOnLoad, function(ns, set)
     set(ns); Config.TpSettings.TpOnLoad = ns; SaveConfig()
     ShowNotification("AUTO TP ON LOAD", ns and "ENABLED" or "DISABLED")
 end)
@@ -5192,15 +5194,14 @@ else
     CreateRow("Menu Toggle: Touch Icon")
 end
 
-do
-    CreateSectionHeader("UI CONTROLS")
-    local rLock = CreateRow("Lock UI Dragging")
-    CreateToggleSwitch(rLock, Config.UILocked, function(ns, set)
-        set(ns); Config.UILocked = ns; SaveConfig()
-        ShowNotification("UI LOCK", ns and "ENABLED" or "DISABLED")
-    end)
+CreateSectionHeader("UI CONTROLS")
+local rLock = CreateRow("Lock UI Dragging")
+CreateToggleSwitch(rLock, Config.UILocked, function(ns, set)
+    set(ns); Config.UILocked = ns; SaveConfig()
+    ShowNotification("UI LOCK", ns and "ENABLED" or "DISABLED")
+end)
 
-    if IS_MOBILE then
+if IS_MOBILE then
     local scaleUI = {}
     scaleUI.row = CreateRow("Mobile GUI Scale")
     scaleUI.bg = Instance.new("Frame", scaleUI.row)
@@ -5315,7 +5316,6 @@ bReset.MouseButton1Click:Connect(function()
     end
     ShowNotification("UI RESET", "Positions restored to default")
 end)
-end
 
 local function updateSettingsCanvasSize()
     local contentHeight = sLayout.AbsoluteContentSize.Y
