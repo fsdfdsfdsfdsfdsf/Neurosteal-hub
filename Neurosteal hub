@@ -143,8 +143,6 @@ local DefaultConfig = {
     AntiRagdollV2 = false,
     PlayerESP    = true,
     FPSBoost     = true,
-    AntiLag      = true,
-    MinimalVisuals = true,
     TracerEnabled = true,
     BrainrotESP = true,
     LineToBase = false,
@@ -747,35 +745,6 @@ local function stripVisuals(obj)
     end
 end
 
-local function applyAntiLagSettings()
-    Lighting.GlobalShadows = false
-    Lighting.FogEnd = 1000000
-    Lighting.FogStart = 0
-    Lighting.EnvironmentDiffuseScale = 0
-    Lighting.EnvironmentSpecularScale = 0
-    Lighting.Ambient = Color3.fromRGB(190, 190, 190)
-    Lighting.OutdoorAmbient = Color3.fromRGB(190, 190, 190)
-
-    for _, v in pairs(Lighting:GetChildren()) do
-        if v:IsA("BloomEffect") or v:IsA("BlurEffect") or v:IsA("ColorCorrectionEffect") or
-           v:IsA("SunRaysEffect") or v:IsA("DepthOfFieldEffect") or v:IsA("Atmosphere") or
-           v:IsA("Sky") then
-            if v:IsA("Sky") then
-                pcall(function()
-                    v.SkyboxBk = ""
-                    v.SkyboxDn = ""
-                    v.SkyboxFt = ""
-                    v.SkyboxLf = ""
-                    v.SkyboxRt = ""
-                    v.SkyboxUp = ""
-                end)
-            else
-                v:Destroy()
-            end
-        end
-    end
-end
-
 local fpsBoostDescendantAddedConn
 local function setFPSBoost(enabled)
     Config.FPSBoost = enabled
@@ -785,26 +754,33 @@ local function setFPSBoost(enabled)
         fpsBoostDescendantAddedConn:Disconnect()
         fpsBoostDescendantAddedConn = nil
     end
-
+    
     if enabled then
-        if Config.AntiLag then
-            applyAntiLagSettings()
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 1000000
+        Lighting.FogStart = 0
+        Lighting.EnvironmentDiffuseScale = 0
+        Lighting.EnvironmentSpecularScale = 0
+        
+        for _, v in pairs(Lighting:GetChildren()) do
+            if v:IsA("BloomEffect") or v:IsA("BlurEffect") or v:IsA("ColorCorrectionEffect") or 
+               v:IsA("SunRaysEffect") or v:IsA("DepthOfFieldEffect") or v:IsA("Atmosphere") then
+                v:Destroy()
+            end
         end
 
-        if Config.MinimalVisuals then
-            for _, obj in pairs(Workspace:GetDescendants()) do
+        for _, obj in pairs(Workspace:GetDescendants()) do
+            stripVisuals(obj)
+        end
+
+        fpsBoostDescendantAddedConn = Workspace.DescendantAdded:Connect(function(obj)
+            if Config.FPSBoost and stripVisualClasses[obj.ClassName] then
                 stripVisuals(obj)
             end
-
-            fpsBoostDescendantAddedConn = Workspace.DescendantAdded:Connect(function(obj)
-                if Config.FPSBoost and Config.MinimalVisuals and stripVisualClasses[obj.ClassName] then
-                    stripVisuals(obj)
-                end
-            end)
-        end
+        end)
     end
 end
-if Config.FPSBoost and setFPSBoost then task.spawn(function() task.wait(1); setFPSBoost(true) end) end
+if Config.FPSBoost then task.spawn(function() task.wait(1); setFPSBoost(true) end) end
 
 local State = {
     ProximityAPActive = false,
@@ -4389,11 +4365,7 @@ local function CreateToggleSwitch(parent, initialState, callback)
         TweenService:Create(dot, TweenInfo.new(0.2,Enum.EasingStyle.Quad,Enum.EasingDirection.Out), {Position=tp}):Play()
         TweenService:Create(sw,  TweenInfo.new(0.2,Enum.EasingStyle.Quad,Enum.EasingDirection.Out), {BackgroundColor3=tc}):Play()
     end
-    btn.MouseButton1Click:Connect(function()
-        if callback then
-            callback(not isOn, SetState)
-        end
-    end)
+    btn.MouseButton1Click:Connect(function() callback(not isOn, SetState) end)
     return {Set=SetState, Container=sw}
 end
 
@@ -4470,22 +4442,6 @@ local rFPS = CreateRow("FPS Boost")
 CreateToggleSwitch(rFPS, Config.FPSBoost, function(ns, set)
     set(ns); setFPSBoost(ns)
     ShowNotification("FPS BOOST", ns and "ENABLED" or "DISABLED")
-end)
-
-local rAntiLag = CreateRow("Anti-Lag")
-CreateToggleSwitch(rAntiLag, Config.AntiLag, function(ns, set)
-    if set then set(ns) end
-    Config.AntiLag = ns; SaveConfig()
-    if Config.FPSBoost and setFPSBoost then setFPSBoost(true) end
-    ShowNotification("ANTI-LAG", ns and "ENABLED" or "DISABLED")
-end)
-
-local rMinimal = CreateRow("Minimal Visuals")
-CreateToggleSwitch(rMinimal, Config.MinimalVisuals, function(ns, set)
-    if set then set(ns) end
-    Config.MinimalVisuals = ns; SaveConfig()
-    if Config.FPSBoost and setFPSBoost then setFPSBoost(true) end
-    ShowNotification("MINIMAL VISUALS", ns and "ENABLED" or "DISABLED")
 end)
 
 local rTrace = CreateRow("Tracer Best Brainrot")
