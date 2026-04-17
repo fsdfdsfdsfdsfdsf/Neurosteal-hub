@@ -196,7 +196,6 @@ local DefaultConfig = {
     AutoStealSpeed = false,
     ShowJobJoiner = true,
     JobJoinerKey = "J",
-    GameDarkMode = false,
 }
 
 
@@ -782,44 +781,6 @@ local function setFPSBoost(enabled)
     end
 end
 if Config.FPSBoost then task.spawn(function() task.wait(1); setFPSBoost(true) end) end
-
-local darkModeBackup = {}
-local function setGameDarkMode(enabled)
-    Config.GameDarkMode = enabled
-    SaveConfig()
-
-    if enabled then
-        if not darkModeBackup.saved then
-            darkModeBackup.Ambient = Lighting.Ambient
-            darkModeBackup.OutdoorAmbient = Lighting.OutdoorAmbient
-            darkModeBackup.Brightness = Lighting.Brightness
-            darkModeBackup.FogStart = Lighting.FogStart
-            darkModeBackup.FogEnd = Lighting.FogEnd
-            darkModeBackup.GlobalShadows = Lighting.GlobalShadows
-            darkModeBackup.ExposureCompensation = Lighting.ExposureCompensation
-            darkModeBackup.saved = true
-        end
-
-        Lighting.Ambient = Color3.fromRGB(20, 20, 28)
-        Lighting.OutdoorAmbient = Color3.fromRGB(30, 30, 40)
-        Lighting.Brightness = 1
-        Lighting.FogStart = 0
-        Lighting.FogEnd = 300
-        Lighting.GlobalShadows = false
-        Lighting.ExposureCompensation = -0.3
-    elseif darkModeBackup.saved then
-        Lighting.Ambient = darkModeBackup.Ambient
-        Lighting.OutdoorAmbient = darkModeBackup.OutdoorAmbient
-        Lighting.Brightness = darkModeBackup.Brightness
-        Lighting.FogStart = darkModeBackup.FogStart
-        Lighting.FogEnd = darkModeBackup.FogEnd
-        Lighting.GlobalShadows = darkModeBackup.GlobalShadows
-        Lighting.ExposureCompensation = darkModeBackup.ExposureCompensation
-        darkModeBackup.saved = false
-    end
-end
-
-if Config.GameDarkMode then task.spawn(function() task.wait(1); setGameDarkMode(true) end) end
 
 local State = {
     ProximityAPActive = false,
@@ -4479,12 +4440,6 @@ local rFPS = CreateRow("FPS Boost")
 CreateToggleSwitch(rFPS, Config.FPSBoost, function(ns, set)
     set(ns); setFPSBoost(ns)
     ShowNotification("FPS BOOST", ns and "ENABLED" or "DISABLED")
-end)
-
-local rDarkMode = CreateRow("Dark Mode")
-CreateToggleSwitch(rDarkMode, Config.GameDarkMode, function(ns, set)
-    set(ns); setGameDarkMode(ns)
-    ShowNotification("DARK MODE", ns and "ENABLED" or "DISABLED")
 end)
 
 local rTrace = CreateRow("Tracer Best Brainrot")
