@@ -804,7 +804,7 @@ local function setFPSBoost(enabled)
         end
     end
 end
-if Config.FPSBoost then task.spawn(function() task.wait(1); setFPSBoost(true) end) end
+if Config.FPSBoost and setFPSBoost then task.spawn(function() task.wait(1); setFPSBoost(true) end) end
 
 local State = {
     ProximityAPActive = false,
@@ -4389,7 +4389,11 @@ local function CreateToggleSwitch(parent, initialState, callback)
         TweenService:Create(dot, TweenInfo.new(0.2,Enum.EasingStyle.Quad,Enum.EasingDirection.Out), {Position=tp}):Play()
         TweenService:Create(sw,  TweenInfo.new(0.2,Enum.EasingStyle.Quad,Enum.EasingDirection.Out), {BackgroundColor3=tc}):Play()
     end
-    btn.MouseButton1Click:Connect(function() callback(not isOn, SetState) end)
+    btn.MouseButton1Click:Connect(function()
+        if callback then
+            callback(not isOn, SetState)
+        end
+    end)
     return {Set=SetState, Container=sw}
 end
 
@@ -4470,15 +4474,17 @@ end)
 
 local rAntiLag = CreateRow("Anti-Lag")
 CreateToggleSwitch(rAntiLag, Config.AntiLag, function(ns, set)
-    set(ns); Config.AntiLag = ns; SaveConfig()
-    if Config.FPSBoost then setFPSBoost(true) end
+    if set then set(ns) end
+    Config.AntiLag = ns; SaveConfig()
+    if Config.FPSBoost and setFPSBoost then setFPSBoost(true) end
     ShowNotification("ANTI-LAG", ns and "ENABLED" or "DISABLED")
 end)
 
 local rMinimal = CreateRow("Minimal Visuals")
 CreateToggleSwitch(rMinimal, Config.MinimalVisuals, function(ns, set)
-    set(ns); Config.MinimalVisuals = ns; SaveConfig()
-    if Config.FPSBoost then setFPSBoost(true) end
+    if set then set(ns) end
+    Config.MinimalVisuals = ns; SaveConfig()
+    if Config.FPSBoost and setFPSBoost then setFPSBoost(true) end
     ShowNotification("MINIMAL VISUALS", ns and "ENABLED" or "DISABLED")
 end)
 
