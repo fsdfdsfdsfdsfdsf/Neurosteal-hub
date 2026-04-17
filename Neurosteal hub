@@ -683,7 +683,30 @@ local function handleAnimator(animator)
     animator.AnimationPlayed:Connect(function(track) track:Stop(0) end)
 end
 
+local stripVisualClasses = {
+    Animator = true,
+    Accessory = true,
+    Clothing = true,
+    ParticleEmitter = true,
+    Trail = true,
+    Beam = true,
+    Smoke = true,
+    Fire = true,
+    Sparkles = true,
+    Highlight = true,
+    Explosion = true,
+    MeshPart = true,
+    BasePart = true,
+    SurfaceAppearance = true,
+    Texture = true,
+    Decal = true,
+}
+
 local function stripVisuals(obj)
+    if not stripVisualClasses[obj.ClassName] then
+        return
+    end
+
     local model = obj:FindFirstAncestorOfClass("Model")
     local isPlayer = model and isPlayerCharacter(model)
 
@@ -693,6 +716,7 @@ local function stripVisuals(obj)
         if obj:FindFirstAncestorOfClass("Model") then
             obj:Destroy()
         end
+        return
     end
 
     if not isPlayer then
@@ -703,6 +727,7 @@ local function stripVisuals(obj)
         end
         if obj:IsA("Explosion") then
             obj:Destroy()
+            return
         end
         if obj:IsA("MeshPart") then
             obj.TextureID = ""
@@ -720,9 +745,15 @@ local function stripVisuals(obj)
     end
 end
 
+local fpsBoostDescendantAddedConn
 local function setFPSBoost(enabled)
     Config.FPSBoost = enabled
     SaveConfig()
+
+    if fpsBoostDescendantAddedConn then
+        fpsBoostDescendantAddedConn:Disconnect()
+        fpsBoostDescendantAddedConn = nil
+    end
     
     if enabled then
         Lighting.GlobalShadows = false
@@ -742,8 +773,8 @@ local function setFPSBoost(enabled)
             stripVisuals(obj)
         end
 
-        Workspace.DescendantAdded:Connect(function(obj)
-            if Config.FPSBoost then
+        fpsBoostDescendantAddedConn = Workspace.DescendantAdded:Connect(function(obj)
+            if Config.FPSBoost and stripVisualClasses[obj.ClassName] then
                 stripVisuals(obj)
             end
         end)
@@ -2453,8 +2484,13 @@ task.spawn(function()
         end
     end)
 
-    RunService.Heartbeat:Connect(function()
+    local autoStealAccumulator = 0
+    RunService.Heartbeat:Connect(function(dt)
         if not autoStealEnabled then return end
+        autoStealAccumulator += dt
+        if autoStealAccumulator < 0.15 then return end
+        autoStealAccumulator = 0
+
         if instantStealEnabled then
             if activeProgressTween then activeProgressTween:Cancel() activeProgressTween = nil end
             progressBarFill.Size = UDim2.new(1, 0, 1, 0)
@@ -2603,7 +2639,13 @@ task.spawn(function()
         end
     end
 
-    RunService.Heartbeat:Connect(updateTracer)
+    local tracerAccumulator = 0
+    RunService.Heartbeat:Connect(function(dt)
+        tracerAccumulator += dt
+        if tracerAccumulator < 0.12 then return end
+        tracerAccumulator = 0
+        updateTracer()
+    end)
 end)
 
 task.spawn(function()
