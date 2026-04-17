@@ -1900,7 +1900,9 @@ task.spawn(function()
         for _, fn in ipairs(data.holdCallbacks) do pcall(fn) end
         for _rep = 1, 6 do
             for _, fn in ipairs(data.triggerCallbacks) do pcall(fn) end
-            if fireproximityprompt then fireproximityprompt(prompt) end
+            if type(fireproximityprompt) == "function" then
+                pcall(fireproximityprompt, prompt)
+            end
         end
         for _, fn in ipairs(data.holdEndCallbacks) do pcall(fn) end
         prompt.HoldDuration = oDur
