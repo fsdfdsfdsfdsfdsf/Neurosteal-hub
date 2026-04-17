@@ -115,7 +115,7 @@ local DefaultConfig = {
         StealSpeed = {X = 0.02, Y = 0.18}, 
         Settings = {X = 0.834375, Y = 0.43590998043052839}, 
         InvisPanel = {X = 0.8578125, Y = 0.17260276361454258}, 
-        AutoSteal = {X = 0.02, Y = 0.35}, 
+        AutoSteal = {X = 0.06, Y = 0.35}, 
         MobileControls = {X = 0.9, Y = 0.4},
         MobileBtn_TP = {X = 0.5, Y = 0.4},
         MobileBtn_CL = {X = 0.5, Y = 0.4},
@@ -123,6 +123,8 @@ local DefaultConfig = {
         MobileBtn_IV = {X = 0.5, Y = 0.4},
         MobileBtn_UI = {X = 0.5, Y = 0.4},
         JobJoiner = {X = 0.5, Y = 0.85},
+        DesyncPanel = {X = 0.5, Y = 0.2},
+        AimbotItemsPanel = {X = 0.05, Y = 0.2},
     }, 
     TpSettings = {
         Tool           = "Flying Carpet",
@@ -196,6 +198,13 @@ local DefaultConfig = {
     AutoStealSpeed = false,
     ShowJobJoiner = true,
     JobJoinerKey = "J",
+    DesyncPanelVisible = false,
+    DesyncEnabled = false,
+    GameDarkMode = false,
+    LaserAimbot = false,
+    PaintballAimbot = false,
+    AimbotItemsGUI = false,
+    GUIEffects = false,
 }
 
 
@@ -4414,6 +4423,362 @@ local function CreateSectionHeader(text)
     return row
 end
 
+local desyncGui, desyncFrame, desyncStatusLabel
+local desyncEnabled = false
+local desyncConn
+local function setDesyncEnabled(enabled)
+    if desyncEnabled == enabled then return end
+    desyncEnabled = enabled
+    Config.DesyncEnabled = enabled
+    SaveConfig()
+    if desyncConn then desyncConn:Disconnect(); desyncConn = nil end
+    if enabled then
+        desyncConn = RunService.Heartbeat:Connect(function()
+            local char = LocalPlayer.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            if not hrp then return end
+            local speed = 1.6
+            local delta = Vector3.new(math.sin(tick() * 9) * speed, 0, math.cos(tick() * 7) * speed)
+            hrp.AssemblyLinearVelocity = Vector3.new(delta.X, hrp.AssemblyLinearVelocity.Y, delta.Z)
+        end)
+    else
+        local char = LocalPlayer.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0)
+        end
+    end
+    if desyncStatusLabel then
+        desyncStatusLabel.Text = enabled and "DESYNC ENABLED" or "DESYNC DISABLED"
+    end
+    updateAimbotItemsGui()
+end
+
+local darkModeBackup = {}
+local function setGameDarkMode(enabled)
+    Config.GameDarkMode = enabled
+    SaveConfig()
+    if enabled then
+        if not darkModeBackup.saved then
+            darkModeBackup.Ambient = Lighting.Ambient
+            darkModeBackup.OutdoorAmbient = Lighting.OutdoorAmbient
+            darkModeBackup.Brightness = Lighting.Brightness
+            darkModeBackup.FogStart = Lighting.FogStart
+            darkModeBackup.FogEnd = Lighting.FogEnd
+            darkModeBackup.saved = true
+        end
+        Lighting.Ambient = Color3.fromRGB(20, 20, 28)
+        Lighting.OutdoorAmbient = Color3.fromRGB(25, 25, 35)
+        Lighting.Brightness = 1
+        Lighting.FogStart = 0
+        Lighting.FogEnd = 300
+        updateAimbotItemsGui()
+    elseif darkModeBackup.saved then
+        Lighting.Ambient = darkModeBackup.Ambient
+        Lighting.OutdoorAmbient = darkModeBackup.OutdoorAmbient
+        Lighting.Brightness = darkModeBackup.Brightness
+        Lighting.FogStart = darkModeBackup.FogStart
+        Lighting.FogEnd = darkModeBackup.FogEnd
+        darkModeBackup.saved = false
+    end
+    updateAimbotItemsGui()
+end
+
+local aimbotItemsGui, aimbotItemsFrame, aimbotItemsStatus
+local function updateAimbotItemsGui()
+    if aimbotItemsStatus then
+        aimbotItemsStatus.Text = "Laser Aimbot: " .. (Config.LaserAimbot and "ON" or "OFF") .. "\n" ..
+                                "Paintball Aimbot: " .. (Config.PaintballAimbot and "ON" or "OFF") .. "\n" ..
+                                "Dark Mode: " .. (Config.GameDarkMode and "ON" or "OFF") .. "\n" ..
+                                "Desync: " .. (desyncEnabled and "ON" or "OFF")
+    end
+end
+
+local aimAssistConn
+local laserSourcePart, laserAttachment0, laserAttachment1, laserBeam
+local originalCameraType = Camera.CameraType
+
+local function destroyLaserBeam()
+    if laserBeam then
+        laserBeam:Destroy(); laserBeam = nil
+    end
+    if laserAttachment1 then
+        laserAttachment1:Destroy(); laserAttachment1 = nil
+    end
+    if laserAttachment0 then
+        laserAttachment0:Destroy(); laserAttachment0 = nil
+    end
+    if laserSourcePart then
+        laserSourcePart:Destroy(); laserSourcePart = nil
+    end
+end
+
+local function createLaserBeam()
+    if laserBeam then return end
+    laserSourcePart = Instance.new("Part")
+    laserSourcePart.Name = "LaserAimbotSource"
+    laserSourcePart.Size = Vector3.new(1, 1, 1)
+    laserSourcePart.Transparency = 1
+    laserSourcePart.CanCollide = false
+    laserSourcePart.Anchored = true
+    laserSourcePart.Parent = Workspace
+
+    laserAttachment0 = Instance.new("Attachment", laserSourcePart)
+    laserAttachment0.Name = "LaserSourceAttachment"
+    laserAttachment1 = Instance.new("Attachment")
+    laserAttachment1.Name = "LaserTargetAttachment"
+
+    laserBeam = Instance.new("Beam")
+    laserBeam.Attachment0 = laserAttachment0
+    laserBeam.Attachment1 = laserAttachment1
+    laserBeam.FaceCamera = true
+    laserBeam.Color = ColorSequence.new(Theme.Accent1)
+    laserBeam.Width0 = 0.2
+    laserBeam.Width1 = 0.2
+    laserBeam.LightEmission = 1
+    laserBeam.Transparency = NumberSequence.new(0)
+    laserBeam.Parent = laserSourcePart
+end
+
+local function getNearestTargetHead()
+    local bestHead, bestDist = nil, math.huge
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character.Parent then
+            local head = player.Character:FindFirstChild("Head")
+            local hum = player.Character:FindFirstChildOfClass("Humanoid")
+            if head and hum and hum.Health > 0 then
+                local dist = (Camera.CFrame.Position - head.Position).Magnitude
+                if dist < bestDist then
+                    bestDist = dist
+                    bestHead = head
+                end
+            end
+        end
+    end
+    return bestHead
+end
+
+local function refreshAimAssist()
+    if aimAssistConn then
+        aimAssistConn:Disconnect(); aimAssistConn = nil
+    end
+    if not (Config.LaserAimbot or Config.PaintballAimbot) then
+        if Camera.CameraType == Enum.CameraType.Scriptable then
+            Camera.CameraType = originalCameraType
+        end
+        destroyLaserBeam()
+        return
+    end
+    if Config.LaserAimbot then
+        createLaserBeam()
+    else
+        destroyLaserBeam()
+    end
+    if Camera.CameraType ~= Enum.CameraType.Scriptable then
+        originalCameraType = Camera.CameraType
+        Camera.CameraType = Enum.CameraType.Scriptable
+    end
+    aimAssistConn = RunService.RenderStepped:Connect(function()
+        local targetHead = getNearestTargetHead()
+        if targetHead then
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetHead.Position)
+            if Config.LaserAimbot and laserBeam and laserSourcePart and laserAttachment1 then
+                laserSourcePart.CFrame = CFrame.new(Camera.CFrame.Position)
+                laserAttachment1.Parent = targetHead
+                laserAttachment1.WorldPosition = targetHead.Position
+                laserBeam.Enabled = true
+            end
+        else
+            if laserBeam then
+                laserBeam.Enabled = false
+            end
+        end
+    end)
+end
+
+local function setLaserAimbot(enabled)
+    if Config.LaserAimbot == enabled then return end
+    Config.LaserAimbot = enabled
+    SaveConfig()
+    refreshAimAssist()
+    updateAimbotItemsGui()
+    ShowNotification("LASER AIMBOT", enabled and "ENABLED" or "DISABLED")
+end
+
+local function setPaintballAimbot(enabled)
+    if Config.PaintballAimbot == enabled then return end
+    Config.PaintballAimbot = enabled
+    SaveConfig()
+    refreshAimAssist()
+    updateAimbotItemsGui()
+    ShowNotification("PAINTBALL AIMBOT", enabled and "ENABLED" or "DISABLED")
+end
+
+local guiEffectsConn
+local function setGUIEffects(enabled)
+    if Config.GUIEffects == enabled then return end
+    Config.GUIEffects = enabled
+    SaveConfig()
+    if guiEffectsConn then guiEffectsConn:Disconnect(); guiEffectsConn = nil end
+    if enabled then
+        guiEffectsConn = RunService.RenderStepped:Connect(function()
+            local color = Color3.fromHSV((tick() * 0.11) % 1, 0.8, 1)
+            sStroke.Color = color
+            if desyncFrame then
+                desyncFrame.BackgroundColor3 = color:lerp(Theme.Surface, 0.75)
+            end
+            if aimbotItemsFrame then
+                aimbotItemsFrame.BorderColor3 = color
+            end
+        end)
+    else
+        if sStroke then sStroke.Color = Theme.Accent2 end
+        if desyncFrame then desyncFrame.BackgroundColor3 = Theme.Surface end
+        if aimbotItemsFrame then aimbotItemsFrame.BorderColor3 = Theme.Accent1 end
+    end
+    ShowNotification("GUI EFFECTS", enabled and "ENABLED" or "DISABLED")
+end
+
+local function setAimbotItemsGuiVisible(visible)
+    Config.AimbotItemsGUI = visible
+    SaveConfig()
+    if aimbotItemsGui then aimbotItemsGui.Enabled = visible end
+    updateAimbotItemsGui()
+    ShowNotification("AIMBOT ITEMS GUI", visible and "SHOWN" or "HIDDEN")
+end
+
+local function setDesyncPanelVisible(visible)
+    Config.DesyncPanelVisible = visible
+    SaveConfig()
+    if desyncGui then desyncGui.Enabled = visible end
+    ShowNotification("DESYNC PANEL", visible and "SHOWN" or "HIDDEN")
+end
+
+local function createDesyncControlPanel()
+    desyncGui = Instance.new("ScreenGui")
+    desyncGui.Name = "DesyncControlPanel"
+    desyncGui.ResetOnSpawn = false
+    desyncGui.Parent = PlayerGui
+    desyncGui.Enabled = Config.DesyncPanelVisible
+
+    desyncFrame = Instance.new("Frame", desyncGui)
+    desyncFrame.Size = UDim2.new(0, 280, 0, 150)
+    desyncFrame.Position = UDim2.new(Config.Positions.DesyncPanel.X, 0, Config.Positions.DesyncPanel.Y, 0)
+    desyncFrame.BackgroundColor3 = Theme.Surface
+    desyncFrame.BorderSizePixel = 1
+    desyncFrame.BorderColor3 = Theme.Accent1
+    Instance.new("UICorner", desyncFrame).CornerRadius = UDim.new(0, 12)
+    MakeDraggable(desyncFrame, desyncFrame, "DesyncPanel")
+
+    local header = Instance.new("Frame", desyncFrame)
+    header.Size = UDim2.new(1, 0, 0, 32)
+    header.BackgroundTransparency = 1
+    local title = Instance.new("TextLabel", header)
+    title.Size = UDim2.new(1, -40, 1, 0)
+    title.Position = UDim2.new(0, 10, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "DESYNC CONTROL PANEL"
+    title.Font = Enum.Font.GothamBlack
+    title.TextSize = 14
+    title.TextColor3 = Theme.TextPrimary
+    title.TextXAlignment = Enum.TextXAlignment.Left
+
+    local closeBtn = Instance.new("TextButton", header)
+    closeBtn.Size = UDim2.new(0, 28, 0, 28)
+    closeBtn.Position = UDim2.new(1, -34, 0, 2)
+    closeBtn.BackgroundColor3 = Theme.SurfaceHighlight
+    closeBtn.Text = "X"
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.TextSize = 16
+    closeBtn.TextColor3 = Theme.TextPrimary
+    Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(1, 0)
+    closeBtn.MouseButton1Click:Connect(function()
+        setDesyncPanelVisible(false)
+    end)
+
+    local enableBtn = Instance.new("TextButton", desyncFrame)
+    enableBtn.Size = UDim2.new(0.45, 0, 0, 36)
+    enableBtn.Position = UDim2.new(0.05, 0, 0.35, 0)
+    enableBtn.BackgroundColor3 = Theme.Success
+    enableBtn.Text = "ENABLE"
+    enableBtn.Font = Enum.Font.GothamBold
+    enableBtn.TextSize = 13
+    enableBtn.TextColor3 = Color3.new(0, 0, 0)
+    Instance.new("UICorner", enableBtn).CornerRadius = UDim.new(0, 8)
+    enableBtn.MouseButton1Click:Connect(function() setDesyncEnabled(true) end)
+
+    local disableBtn = Instance.new("TextButton", desyncFrame)
+    disableBtn.Size = UDim2.new(0.45, 0, 0, 36)
+    disableBtn.Position = UDim2.new(0.5, 0, 0.35, 0)
+    disableBtn.BackgroundColor3 = Theme.Error
+    disableBtn.Text = "DISABLE"
+    disableBtn.Font = Enum.Font.GothamBold
+    disableBtn.TextSize = 13
+    disableBtn.TextColor3 = Color3.new(1, 1, 1)
+    Instance.new("UICorner", disableBtn).CornerRadius = UDim.new(0, 8)
+    disableBtn.MouseButton1Click:Connect(function() setDesyncEnabled(false) end)
+
+    desyncStatusLabel = Instance.new("TextLabel", desyncFrame)
+    desyncStatusLabel.Size = UDim2.new(1, -24, 0, 36)
+    desyncStatusLabel.Position = UDim2.new(0, 12, 0.7, 0)
+    desyncStatusLabel.BackgroundTransparency = 1
+    desyncStatusLabel.Text = desyncEnabled and "DESYNC ENABLED" or "DESYNC DISABLED"
+    desyncStatusLabel.Font = Enum.Font.GothamBold
+    desyncStatusLabel.TextSize = 13
+    desyncStatusLabel.TextColor3 = Theme.TextPrimary
+    desyncStatusLabel.TextXAlignment = Enum.TextXAlignment.Center
+    desyncStatusLabel.TextYAlignment = Enum.TextYAlignment.Center
+end
+
+local function createAimbotItemsGui()
+    aimbotItemsGui = Instance.new("ScreenGui")
+    aimbotItemsGui.Name = "AimbotItemsGUI"
+    aimbotItemsGui.ResetOnSpawn = false
+    aimbotItemsGui.Parent = PlayerGui
+    aimbotItemsGui.Enabled = Config.AimbotItemsGUI
+
+    aimbotItemsFrame = Instance.new("Frame", aimbotItemsGui)
+    aimbotItemsFrame.Size = UDim2.new(0, 240, 0, 120)
+    aimbotItemsFrame.Position = UDim2.new(Config.Positions.AimbotItemsPanel.X, 0, Config.Positions.AimbotItemsPanel.Y, 0)
+    aimbotItemsFrame.BackgroundColor3 = Theme.Surface
+    aimbotItemsFrame.BorderSizePixel = 1
+    aimbotItemsFrame.BorderColor3 = Theme.Accent1
+    Instance.new("UICorner", aimbotItemsFrame).CornerRadius = UDim.new(0, 12)
+    MakeDraggable(aimbotItemsFrame, aimbotItemsFrame, "AimbotItemsPanel")
+
+    local title = Instance.new("TextLabel", aimbotItemsFrame)
+    title.Size = UDim2.new(1, -20, 0, 28)
+    title.Position = UDim2.new(0, 10, 0, 10)
+    title.BackgroundTransparency = 1
+    title.Text = "AIMBOT ITEMS"
+    title.Font = Enum.Font.GothamBlack
+    title.TextSize = 14
+    title.TextColor3 = Theme.TextPrimary
+    title.TextXAlignment = Enum.TextXAlignment.Left
+
+    aimbotItemsStatus = Instance.new("TextLabel", aimbotItemsFrame)
+    aimbotItemsStatus.Size = UDim2.new(1, -20, 1, -44)
+    aimbotItemsStatus.Position = UDim2.new(0, 10, 0, 36)
+    aimbotItemsStatus.BackgroundTransparency = 1
+    aimbotItemsStatus.RichText = true
+    aimbotItemsStatus.Text = ""
+    aimbotItemsStatus.Font = Enum.Font.GothamMedium
+    aimbotItemsStatus.TextSize = 12
+    aimbotItemsStatus.TextColor3 = Theme.TextSecondary
+    aimbotItemsStatus.TextXAlignment = Enum.TextXAlignment.Left
+    aimbotItemsStatus.TextYAlignment = Enum.TextYAlignment.Top
+
+    updateAimbotItemsGui()
+end
+
+createDesyncControlPanel()
+createAimbotItemsGui()
+setDesyncEnabled(Config.DesyncEnabled)
+setGameDarkMode(Config.GameDarkMode)
+setGUIEffects(Config.GUIEffects)
+refreshAimAssist()
+updateAimbotItemsGui()
+
 CreateRow("Auto TP on Script Load")
 CreateToggleSwitch(sList:FindFirstChildOfClass("Frame"), Config.TpSettings.TpOnLoad, function(ns, set)
     set(ns); Config.TpSettings.TpOnLoad = ns; SaveConfig()
@@ -4908,6 +5273,43 @@ CreateToggleSwitch(rCompactAutoSteal, Config.CompactAutoSteal, function(ns, set)
 end)
 
 CreateSectionHeader("EXTRAS")   
+
+local rDesyncPanel = CreateRow("Show Desync Control Panel GUI")
+CreateToggleSwitch(rDesyncPanel, Config.DesyncPanelVisible, function(ns, set)
+    set(ns)
+    setDesyncPanelVisible(ns)
+end)
+
+local rDesync = CreateRow("Enable Desync")
+CreateToggleSwitch(rDesync, Config.DesyncEnabled, function(ns, set)
+    set(ns);
+    setDesyncEnabled(ns)
+end)
+
+local rDarkMode = CreateRow("Game Dark Mode")
+CreateToggleSwitch(rDarkMode, Config.GameDarkMode, function(ns, set)
+    set(ns); setGameDarkMode(ns)
+end)
+
+local rLaserAimbot = CreateRow("Laser Aimbot")
+CreateToggleSwitch(rLaserAimbot, Config.LaserAimbot, function(ns, set)
+    set(ns); setLaserAimbot(ns)
+end)
+
+local rPaintballAimbot = CreateRow("Paintball Aimbot")
+CreateToggleSwitch(rPaintballAimbot, Config.PaintballAimbot, function(ns, set)
+    set(ns); setPaintballAimbot(ns)
+end)
+
+local rAimbotItemsGui = CreateRow("Aimbot Items GUI")
+CreateToggleSwitch(rAimbotItemsGui, Config.AimbotItemsGUI, function(ns, set)
+    set(ns); setAimbotItemsGuiVisible(ns)
+end)
+
+local rGuiEffects = CreateRow("GUI Effects")
+CreateToggleSwitch(rGuiEffects, Config.GUIEffects, function(ns, set)
+    set(ns); setGUIEffects(ns)
+end)
 
 local rResetKey = CreateRow("Reset")
 local bResetKey = Instance.new("TextButton", rResetKey)
