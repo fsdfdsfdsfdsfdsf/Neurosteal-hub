@@ -5194,14 +5194,15 @@ else
     CreateRow("Menu Toggle: Touch Icon")
 end
 
-CreateSectionHeader("UI CONTROLS")
-local rLock = CreateRow("Lock UI Dragging")
-CreateToggleSwitch(rLock, Config.UILocked, function(ns, set)
-    set(ns); Config.UILocked = ns; SaveConfig()
-    ShowNotification("UI LOCK", ns and "ENABLED" or "DISABLED")
-end)
+do
+    CreateSectionHeader("UI CONTROLS")
+    local rLock = CreateRow("Lock UI Dragging")
+    CreateToggleSwitch(rLock, Config.UILocked, function(ns, set)
+        set(ns); Config.UILocked = ns; SaveConfig()
+        ShowNotification("UI LOCK", ns and "ENABLED" or "DISABLED")
+    end)
 
-if IS_MOBILE then
+    if IS_MOBILE then
     local scaleUI = {}
     scaleUI.row = CreateRow("Mobile GUI Scale")
     scaleUI.bg = Instance.new("Frame", scaleUI.row)
@@ -5316,6 +5317,7 @@ bReset.MouseButton1Click:Connect(function()
     end
     ShowNotification("UI RESET", "Positions restored to default")
 end)
+end
 
 local function updateSettingsCanvasSize()
     local contentHeight = sLayout.AbsoluteContentSize.Y
