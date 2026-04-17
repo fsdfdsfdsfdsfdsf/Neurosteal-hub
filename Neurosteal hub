@@ -1900,9 +1900,7 @@ task.spawn(function()
         for _, fn in ipairs(data.holdCallbacks) do pcall(fn) end
         for _rep = 1, 6 do
             for _, fn in ipairs(data.triggerCallbacks) do pcall(fn) end
-            if type(fireproximityprompt) == "function" then
-                pcall(fireproximityprompt, prompt)
-            end
+            if fireproximityprompt then fireproximityprompt(prompt) end
         end
         for _, fn in ipairs(data.holdEndCallbacks) do pcall(fn) end
         prompt.HoldDuration = oDur
@@ -2486,13 +2484,8 @@ task.spawn(function()
         end
     end)
 
-    local autoStealAccumulator = 0
-    RunService.Heartbeat:Connect(function(dt)
+    RunService.Heartbeat:Connect(function()
         if not autoStealEnabled then return end
-        autoStealAccumulator += dt
-        if autoStealAccumulator < 0.15 then return end
-        autoStealAccumulator = 0
-
         if instantStealEnabled then
             if activeProgressTween then activeProgressTween:Cancel() activeProgressTween = nil end
             progressBarFill.Size = UDim2.new(1, 0, 1, 0)
@@ -2641,13 +2634,7 @@ task.spawn(function()
         end
     end
 
-    local tracerAccumulator = 0
-    RunService.Heartbeat:Connect(function(dt)
-        tracerAccumulator += dt
-        if tracerAccumulator < 0.12 then return end
-        tracerAccumulator = 0
-        updateTracer()
-    end)
+    RunService.Heartbeat:Connect(updateTracer)
 end)
 
 task.spawn(function()
